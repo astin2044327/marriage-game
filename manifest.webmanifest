@@ -1,0 +1,12 @@
+{
+  "name": "Marriage Game",
+  "short_name": "Marriage",
+  "description": "Marriage point calculator plus Call Break and Marriage play.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#1B4332",
+  "theme_color": "#1B4332",
+  "icons": [
+    { "src": "./icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
