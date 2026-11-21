@@ -49,12 +49,67 @@
     return c.rank + SUIT_SYM[c.suit];
   }
 
+  function themeClass(theme) {
+    if (!theme || theme === "classic") return "theme-classic";
+    if (theme === "gold") return "theme-gold";
+    if (theme === "midnight") return "theme-midnight";
+    return "";
+  }
+
+  /**
+   * Face-up card (or face-down if opts.back).
+   * opts: playable, dim, small, large, fan, fanIndex, back, theme, dataId, disabled, dealIn
+   */
   function html(c, opts) {
     const o = opts || {};
-    const cls = ["card", isRed(c) ? "red" : "black", o.playable ? "playable" : "", o.dim ? "dim" : "", o.small ? "small" : ""]
-      .filter(Boolean).join(" ");
+    if (o.back) return htmlBack(o);
+    const cls = [
+      "card",
+      isRed(c) ? "red" : "black",
+      o.playable ? "playable" : "",
+      o.dim ? "dim" : "",
+      o.small ? "small" : "",
+      o.large ? "large" : "",
+      o.fan ? "fan" : "",
+      o.dealIn ? "deal-in" : "",
+      themeClass(o.theme)
+    ].filter(Boolean).join(" ");
     const data = o.dataId ? ` data-id="${c.id}"` : "";
-    return `<button type="button" class="${cls}"${data} ${o.disabled ? "disabled" : ""}><span>${c.rank}</span><span>${SUIT_SYM[c.suit]}</span></button>`;
+    const fanStyle = o.fanIndex != null ? ` style="--i:${o.fanIndex}"` : "";
+    const sym = SUIT_SYM[c.suit];
+    const aria = ` aria-label="${c.rank} ${sym}"`;
+    return (
+      `<button type="button" class="${cls}"${data}${fanStyle}${aria} ${o.disabled ? "disabled" : ""}>` +
+      `<span class="corner" aria-hidden="true"><span class="rank">${c.rank}</span><span class="suit">${sym}</span></span>` +
+      `<span class="pip" aria-hidden="true">${sym}</span>` +
+      `<span class="corner br" aria-hidden="true"><span class="rank">${c.rank}</span><span class="suit">${sym}</span></span>` +
+      `</button>`
+    );
+  }
+
+  /** Face-down patterned reverse for opponent fans / deck. */
+  function htmlBack(opts) {
+    const o = opts || {};
+    const cls = [
+      "card",
+      "back",
+      o.small ? "small" : "",
+      o.large ? "large" : "",
+      o.fan ? "fan" : "",
+      o.dealIn ? "deal-in" : "",
+      themeClass(o.theme)
+    ].filter(Boolean).join(" ");
+    const fanStyle = o.fanIndex != null ? ` style="--i:${o.fanIndex}"` : "";
+    const data = o.dataId ? ` data-id="${o.dataId}"` : "";
+    return `<span class="${cls}"${data}${fanStyle} aria-hidden="true"></span>`;
+  }
+
+  function backFan(n, opts) {
+    const o = opts || {};
+    const count = Math.max(0, Math.min(Number(n) || 0, 16));
+    return Array.from({ length: count }, (_, i) =>
+      htmlBack(Object.assign({}, o, { fan: true, fanIndex: i }))
+    ).join("");
   }
 
   /** Call Break: higher card wins; spades always trump. */
@@ -97,6 +152,6 @@
 
   window.MG_CARDS = {
     SUITS, SUIT_SYM, RANKS, RANK_VAL, card, deck52, shuffle, deal, cmpCard,
-    isRed, label, html, winnerIndex, legalCB
+    isRed, label, html, htmlBack, backFan, winnerIndex, legalCB
   };
 })();

@@ -69,11 +69,13 @@ No server. “Shareable room code” = generate short code + export/import JSON;
 
 ## UX principles
 
-- Nepali card-table atmosphere: felt green, warm lamp light, ink scoreboard — **not** purple gradients / generic AI chrome.
-- CSS vars: `--felt`, `--felt-deep`, `--lamp`, `--ink`, `--paper`, `--win`, `--lose`, `--accent` (gold/brass, not violet).
-- One job per screen; scoreboard never hidden mid-Call-Break.
-- Large tap targets for hotseat; clear “pass device” cue.
+- Nepali card-table atmosphere: felt green, warm lamp light, wood rail, cream cards — **not** purple gradients / Shrestha red-form / generic AI chrome.
+- CSS vars: `--felt`, `--felt-deep`, `--lamp`, `--ink`, `--paper`, `--win`, `--lose`, `--accent` (gold/brass), plus `--rail`, chip colors, card-face/back themes (`classic` | `gold` | `midnight`).
+- Screens are **oval tables with seats**, not spreadsheets: status as seat chips (Seen/Unseen/Dublee/Open/Foul/Hold); settle tray shows math; CB sticky board always on.
+- Card chrome: face-up cream pips, patterned backs, fan hands, deal-in / playable lift / winner pulse.
+- One job per screen; large tap targets for hotseat; clear “pass device” cue.
 - Settlement and share text readable when pasted into a chat.
+- Research + UI lock: `docs/RESEARCH_MPC.md`, `docs/UI_SPEC.md`.
 
 ## Non-goals
 

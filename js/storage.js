@@ -13,6 +13,7 @@
     return S.loadJSON(KEYS.settings, () => ({
       lastMode: "murder",
       defaultRate: 1,
+      defaultCurrency: "npr",
       openMarriageDefault: false
     }));
   }
@@ -27,6 +28,11 @@
   function logs() {
     const list = S.loadJSON(KEYS.logs, () => []);
     return Array.isArray(list) ? list : [];
+  }
+
+  function logsByGame(game) {
+    const g = String(game || "");
+    return logs().filter((row) => String(row.game || "") === g);
   }
 
   function upsertLog(entry) {
@@ -64,7 +70,7 @@
   }
 
   window.MG_STORE = {
-    KEYS, settings, saveSettings, logs, upsertLog, deleteLog,
+    KEYS, settings, saveSettings, logs, logsByGame, upsertLog, deleteLog,
     getActive, setActive, clearActive, setInvite, getInvite
   };
 })();

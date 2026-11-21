@@ -1,4 +1,4 @@
-const CACHE = "marriage-game-v1";
+const CACHE = "marriage-game-v14";
 const SHELL = [
   "./",
   "./index.html",
@@ -8,6 +8,8 @@ const SHELL = [
   "./js/safe.js",
   "./js/cards.js",
   "./js/storage.js",
+  "./js/live-room.js",
+  "./js/avatar.js",
   "./js/marriage-calc.js",
   "./js/callbreak-calc.js",
   "./js/callbreak-play.js",
