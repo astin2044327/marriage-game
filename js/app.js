@@ -517,7 +517,8 @@
         <h1 class="tool-title">Who is at the table</h1>
         <p class="tool-sub">Set mode, currency, players, and house rules here — they stay for the whole match after you start.</p>
       </header>
-      <section class="tool-panel controls-panel" aria-label="House rules">
+      <section class="tool-panel controls-panel" aria-label="Match setup">
+        <p class="section-label">Before you start</p>
         <div class="field"><label for="mode">Mode</label>
           <select id="mode">
             <option value="murder" ${session.mode === "murder" ? "selected" : ""}>Murder</option>
@@ -2500,6 +2501,15 @@
   route();
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js").catch(() => {});
+    navigator.serviceWorker.register("./sw.js").then((reg) => {
+      reg.update().catch(() => {});
+      if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
+    }).catch(() => {});
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (refreshing) return;
+      refreshing = true;
+      location.reload();
+    });
   }
 })();

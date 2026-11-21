@@ -1,20 +1,20 @@
-const CACHE = "marriage-game-v17";
+const CACHE = "marriage-game-v18";
 const SHELL = [
   "./",
   "./index.html",
-  "./css/app.css",
+  "./css/app.css?v=18",
   "./manifest.webmanifest",
   "./icons/icon.svg",
-  "./js/safe.js",
-  "./js/cards.js",
-  "./js/storage.js",
-  "./js/live-room.js",
-  "./js/avatar.js",
-  "./js/marriage-calc.js",
-  "./js/callbreak-calc.js",
-  "./js/callbreak-play.js",
-  "./js/marriage-play.js",
-  "./js/app.js"
+  "./js/safe.js?v=18",
+  "./js/cards.js?v=18",
+  "./js/storage.js?v=18",
+  "./js/live-room.js?v=18",
+  "./js/avatar.js?v=18",
+  "./js/marriage-calc.js?v=18",
+  "./js/callbreak-calc.js?v=18",
+  "./js/callbreak-play.js?v=18",
+  "./js/marriage-play.js?v=18",
+  "./js/app.js?v=18"
 ];
 
 self.addEventListener("install", (e) => {
@@ -27,6 +27,10 @@ self.addEventListener("activate", (e) => {
       Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
+});
+
+self.addEventListener("message", (e) => {
+  if (e.data && e.data.type === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("fetch", (e) => {
