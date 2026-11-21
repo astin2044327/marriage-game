@@ -59,7 +59,7 @@
         <a class="menu-tile" href="#/calc/marriage"><strong>Marriage calculator</strong><span>Standing · maal · Murder/Kidnap · settle</span></a>
         <a class="menu-tile" href="#/calc/callbreak"><strong>Call Break scores</strong><span>Live totals · next hand · rounds</span></a>
         <a class="menu-tile" href="#/play/cb"><strong>Play CB</strong><span>Bots or hotseat · pass the device</span></a>
-        <a class="menu-tile" href="#/play/marriage"><strong>Play Marriage</strong><span>Deal · tiplu · maal settle</span></a>
+        <a class="menu-tile" href="#/play/marriage"><strong>Play Marriage</strong><span>21 cards · pull discard/deck · sequences</span></a>
         <a class="menu-tile" href="#/logs"><strong>Logs</strong><span>Resume saved sheets</span></a>
         <a class="menu-tile" href="#/invite"><strong>Invite</strong><span>Paste room JSON · join hotseat</span></a>
       </nav>
@@ -289,21 +289,6 @@
     </section>`;
   }
 
-  function marriageLockedRulesHtml(session) {
-    const better = session.betterRule || MCalc.defaultBetterRule();
-    const foul = session.foulRule || MCalc.defaultFoulRule();
-    const betterLine = better.enabled
-      ? `Better · ${better.playerCount}p · ind≥${better.individualMaal} / table≥${better.totalMaal} → next ×2`
-      : "Better · off";
-    const foulLine = `Foul · seen ${foul.seenPts} / unseen ${foul.unseenPts} / flat ${foul.foulPts} (${foul.foulNextRound ? "next round" : "this round"})`;
-    return `<section class="tool-panel rules-locked" aria-label="Locked house rules">
-      <p class="section-label">House rules (locked)</p>
-      <p class="field-hint">${esc(betterLine)}</p>
-      <p class="field-hint">${esc(foulLine)}</p>
-      <p class="field-hint">Change these only on a new match setup.</p>
-    </section>`;
-  }
-
   function shareDockHtml(opts) {
     const o = opts || {};
     const viewUrl = o.viewUrl || "";
@@ -530,7 +515,7 @@
     <div class="screen-pad">
       <header class="tool-header">
         <h1 class="tool-title">Who is at the table</h1>
-        <p class="tool-sub">Set players, names, and Better rule before you start. Tap an icon to change character.</p>
+        <p class="tool-sub">Set mode, currency, players, and house rules here — they stay for the whole match after you start.</p>
       </header>
       <section class="tool-panel controls-panel" aria-label="House rules">
         <div class="field"><label for="mode">Mode</label>
@@ -709,6 +694,47 @@
       return n;
     }
 
+    /** Soft field edits must NOT call paint() — a full re-render on change/blur
+     * destroys the button mid-click (e.g. Start keeping score needs two taps). */
+    function flushSetupFromDom() {
+      const mode = root.querySelector("#mode");
+      if (mode) session.mode = mode.value;
+      const rate = root.querySelector("#rate");
+      if (rate) session.rate = Number(rate.value) || 0;
+      const currency = root.querySelector("#currency");
+      if (currency) session.currency = MCalc.currencyOf(currency.value).id;
+      const openm = root.querySelector("#openm");
+      if (openm) {
+        session.openMarriage = openm.checked;
+        if (!session.openMarriage) session.players.forEach((p) => { p.openHolder = false; });
+      }
+      root.querySelectorAll(".seat-name").forEach((inp) => {
+        const i = Number(inp.dataset.i);
+        if (!session.players[i]) return;
+        session.players[i].name = inp.value.trim() || session.players[i].name;
+      });
+      if (!session.betterRule) session.betterRule = MCalc.suggestedBetterRule(session.players.length);
+      if (!session.foulRule) session.foulRule = MCalc.defaultFoulRule();
+      const on = root.querySelector("#better-rule-on");
+      if (on) session.betterRule.enabled = on.checked;
+      const bp = root.querySelector("#better-players");
+      if (bp) {
+        session.betterRule.playerCount = Math.max(2, Math.min(10, Number(bp.value) || session.players.length));
+      }
+      const ind = root.querySelector("#better-ind");
+      if (ind) session.betterRule.individualMaal = Math.max(1, Number(ind.value) || 25);
+      const tot = root.querySelector("#better-tot");
+      if (tot) session.betterRule.totalMaal = Math.max(1, Number(tot.value) || 50);
+      const foulNext = root.querySelector("#foul-next-round");
+      if (foulNext) session.foulRule.foulNextRound = foulNext.checked;
+      const foulUnseen = root.querySelector("#foul-unseen");
+      if (foulUnseen) session.foulRule.unseenPts = Math.max(0, Number(foulUnseen.value) || 10);
+      const foulSeen = root.querySelector("#foul-seen");
+      if (foulSeen) session.foulRule.seenPts = Math.max(0, Number(foulSeen.value) || 3);
+      const foulFlat = root.querySelector("#foul-flat");
+      if (foulFlat) session.foulRule.foulPts = Math.max(0, Number(foulFlat.value) || 15);
+    }
+
     function bindBetterRule() {
       if (!canEdit()) return;
       if (!session.betterRule) session.betterRule = MCalc.suggestedBetterRule(session.players.length);
@@ -723,6 +749,7 @@
             session.betterRule.individualMaal = s.individualMaal;
             session.betterRule.totalMaal = s.totalMaal;
           }
+          // Structure changes (threshold fields appear/hide) — must repaint.
           paint();
         };
       }
@@ -745,7 +772,6 @@
           const n = Math.max(2, Math.min(10, Number(e.target.value) || session.players.length));
           session.betterRule.playerCount = n;
           session.betterRule._customized = true;
-          paint();
         };
       }
       const ind = root.querySelector("#better-ind");
@@ -753,7 +779,6 @@
         ind.onchange = (e) => {
           session.betterRule.individualMaal = Math.max(1, Number(e.target.value) || 25);
           session.betterRule._customized = true;
-          paint();
         };
       }
       const tot = root.querySelector("#better-tot");
@@ -761,7 +786,6 @@
         tot.onchange = (e) => {
           session.betterRule.totalMaal = Math.max(1, Number(e.target.value) || 50);
           session.betterRule._customized = true;
-          paint();
         };
       }
       const fill = root.querySelector("#better-fill-defaults");
@@ -781,40 +805,37 @@
       if (foulNext) {
         foulNext.onchange = (e) => {
           session.foulRule.foulNextRound = e.target.checked;
-          paint();
         };
       }
       const foulUnseen = root.querySelector("#foul-unseen");
       if (foulUnseen) {
         foulUnseen.onchange = (e) => {
           session.foulRule.unseenPts = Math.max(0, Number(e.target.value) || 10);
-          paint();
         };
       }
       const foulSeen = root.querySelector("#foul-seen");
       if (foulSeen) {
         foulSeen.onchange = (e) => {
           session.foulRule.seenPts = Math.max(0, Number(e.target.value) || 3);
-          paint();
         };
       }
       const foulFlat = root.querySelector("#foul-flat");
       if (foulFlat) {
         foulFlat.onchange = (e) => {
           session.foulRule.foulPts = Math.max(0, Number(e.target.value) || 15);
-          paint();
         };
       }
     }
 
-    function bindCommonSettings() {
+    function bindCommonSettings(opts) {
       if (!canEdit()) return;
+      const soft = !!(opts && opts.soft);
       const mode = root.querySelector("#mode");
       if (mode) {
         mode.onchange = (e) => {
           session.mode = e.target.value;
           Store.saveSettings({ lastMode: session.mode });
-          paint();
+          if (!soft) paint();
         };
       }
       const rate = root.querySelector("#rate");
@@ -822,7 +843,7 @@
         rate.onchange = (e) => {
           session.rate = Number(e.target.value) || 0;
           Store.saveSettings({ defaultRate: session.rate });
-          paint();
+          if (!soft) paint();
         };
       }
       const currency = root.querySelector("#currency");
@@ -830,7 +851,7 @@
         currency.onchange = (e) => {
           session.currency = MCalc.currencyOf(e.target.value).id;
           Store.saveSettings({ defaultCurrency: session.currency });
-          paint();
+          if (!soft) paint();
         };
       }
       const openm = root.querySelector("#openm");
@@ -839,7 +860,7 @@
           session.openMarriage = e.target.checked;
           if (!session.openMarriage) session.players.forEach((p) => { p.openHolder = false; });
           Store.saveSettings({ openMarriageDefault: session.openMarriage });
-          paint();
+          if (!soft) paint();
         };
       }
       bindBetterRule();
@@ -1060,14 +1081,21 @@
 
       if (session.phase === "setup" && canEdit()) {
         root.innerHTML = marriageSetupHtml(session) + marriageLogsPanelHtml(session.id, { canEdit: true });
-        bindCommonSettings();
+        // Warm avatar cache at play sizes so Start → scorecard feels instant.
+        if (window.MG_Avatar && typeof window.MG_Avatar.dataUrl === "function") {
+          session.players.forEach((p) => {
+            window.MG_Avatar.dataUrl(p.face, 28);
+            window.MG_Avatar.dataUrl(p.face, 40);
+          });
+        }
+        bindCommonSettings({ soft: true });
         bindFaces();
         bindLogsPanel();
+        // Soft sync only — painting here would swallow the next CTA click after blur.
         root.querySelectorAll(".seat-name").forEach((inp) => {
           inp.onchange = () => {
             const i = Number(inp.dataset.i);
             session.players[i].name = inp.value.trim() || session.players[i].name;
-            paint();
           };
         });
         root.querySelectorAll("[data-remove]").forEach((btn) => {
@@ -1079,14 +1107,22 @@
           };
         });
         root.querySelector("#add-player").onclick = () => {
+          flushSetupFromDom();
           const inp = root.querySelector("#new-name");
           const name = (inp && inp.value.trim()) || "";
           MCalc.addPlayer(session, name);
           paint();
         };
         root.querySelector("#start-match").onclick = () => {
+          flushSetupFromDom();
           MCalc.startMatch(session);
           session.rulesLocked = true;
+          Store.saveSettings({
+            lastMode: session.mode,
+            defaultRate: session.rate,
+            defaultCurrency: session.currency,
+            openMarriageDefault: session.openMarriage
+          });
           persistLocal();
           toast("Rules locked · Round 1 — enter maal");
           paint();
@@ -1125,32 +1161,11 @@
 
         ${marriageRoundsTableHtml(session)}
 
-        <section class="tool-panel controls-panel" aria-label="Table settings">
-          <div class="field"><label for="mode">Mode</label>
-            <select id="mode" ${ro}>
-              <option value="murder" ${session.mode === "murder" ? "selected" : ""}>Murder</option>
-              <option value="kidnap" ${session.mode === "kidnap" ? "selected" : ""}>Kidnap</option>
-            </select>
-          </div>
-          <div class="field"><label for="rate">Rate</label>
-            <input id="rate" type="number" step="0.1" min="0" value="${esc(session.rate)}" ${ro} />
-          </div>
-          <div class="field"><label for="currency">Currency</label>
-            <select id="currency" ${ro}>
-              ${MCalc.CURRENCIES.map((c) =>
-                `<option value="${esc(c.id)}" ${session.currency === c.id ? "selected" : ""}>${esc(c.label)} (${esc(c.symbol)})</option>`
-              ).join("")}
-            </select>
-          </div>
-          <label class="soft-check">
-            <input id="openm" type="checkbox" ${session.openMarriage ? "checked" : ""} ${ro} /> Open Marriage
-          </label>
+        <section class="tool-panel controls-panel compact-round-opts" aria-label="This round options">
           <label class="soft-check better-check" title="Doubles this round's points only">
             <input id="better" type="checkbox" ${session.better ? "checked" : ""} ${ro} /> Better (×2 this round)
           </label>
         </section>
-
-        ${marriageLockedRulesHtml(session)}
 
         <section class="tool-panel round-entry" aria-label="This round">
           <div class="row spread" style="margin-bottom:10px;align-items:center">
@@ -1210,7 +1225,7 @@
         MCalc.ensureSeen(p);
       };
 
-      bindCommonSettings();
+      bindCommonSettings({ soft: true });
       bindFaces();
       bindLogsPanel();
 
@@ -1218,19 +1233,58 @@
       if (better) {
         better.onchange = (e) => {
           session.better = e.target.checked;
-          paint();
+          refreshDraftOnly();
         };
       }
 
       const addLive = root.querySelector("#add-player-live");
       if (addLive) {
         addLive.onclick = () => {
+          flushPlayEntryFromDom();
           const name = window.prompt("New player name", "Player " + (session.players.length + 1));
           if (name === null) return;
           MCalc.addPlayer(session, name.trim() || undefined);
           toast("Added with 0 for past rounds · Seen");
           paint();
         };
+      }
+
+      function flushPlayEntryFromDom() {
+        // Mode / currency / rate / open marriage stay from setup — not edited mid-match.
+        root.querySelectorAll(".seat-name").forEach((inp) => {
+          const i = Number(inp.dataset.i);
+          if (!session.players[i]) return;
+          const name = inp.value.trim() || session.players[i].name;
+          session.players[i].name = name;
+          (session.rounds || []).forEach((round) => {
+            if (round.cells && round.cells[i]) round.cells[i].name = name;
+          });
+        });
+        root.querySelectorAll(".maal").forEach((inp) => {
+          const i = Number(inp.dataset.i);
+          if (!session.players[i]) return;
+          session.players[i].maal = Number(inp.value) || 0;
+          syncPlayer(i);
+        });
+        const betterEl = root.querySelector("#better");
+        if (betterEl) session.better = betterEl.checked;
+      }
+
+      function refreshDraftOnly() {
+        const result = MCalc.settle(session);
+        const oldDraft = root.querySelector("#score-card");
+        if (oldDraft) {
+          const tmp = document.createElement("div");
+          tmp.innerHTML = marriageDraftCardHtml(session, result);
+          const next = tmp.firstElementChild;
+          if (next) oldDraft.replaceWith(next);
+        }
+        const addRoundBtn = root.querySelector("#add-round");
+        if (addRoundBtn) {
+          const nextNum = (session.rounds || []).length + 1;
+          addRoundBtn.textContent =
+            `Add round ${nextNum}${session.better ? " · Better ×2" : ""} · maal ${result.sum}`;
+        }
       }
 
       root.querySelectorAll(".seat-name").forEach((inp) => {
@@ -1241,7 +1295,6 @@
           (session.rounds || []).forEach((round) => {
             if (round.cells && round.cells[i]) round.cells[i].name = name;
           });
-          paint();
         };
       });
       root.querySelectorAll(".maal").forEach((inp) => {
@@ -1249,7 +1302,7 @@
           const i = Number(inp.dataset.i);
           session.players[i].maal = Number(inp.value) || 0;
           syncPlayer(i);
-          paint();
+          refreshDraftOnly();
         };
       });
       root.querySelectorAll(".maal-inc").forEach((btn) => {
@@ -1257,8 +1310,10 @@
           const i = Number(btn.dataset.i);
           if (session.players[i].hold) return;
           session.players[i].maal = (Number(session.players[i].maal) || 0) + 1;
+          const inp = root.querySelector(`.maal[data-i="${i}"]`);
+          if (inp) inp.value = String(session.players[i].maal);
           syncPlayer(i);
-          paint();
+          refreshDraftOnly();
         };
       });
       root.querySelectorAll(".maal-dec").forEach((btn) => {
@@ -1266,8 +1321,10 @@
           const i = Number(btn.dataset.i);
           if (session.players[i].hold) return;
           session.players[i].maal = Math.max(0, (Number(session.players[i].maal) || 0) - 1);
+          const inp = root.querySelector(`.maal[data-i="${i}"]`);
+          if (inp) inp.value = String(session.players[i].maal);
           syncPlayer(i);
-          paint();
+          refreshDraftOnly();
         };
       });
       root.querySelectorAll(".status-select").forEach((sel) => {
@@ -1300,6 +1357,7 @@
       const addRound = root.querySelector("#add-round");
       if (addRound) {
         addRound.onclick = () => {
+          flushPlayEntryFromDom();
           const active = session.players.filter((p) => !p.hold);
           if (active.length < 2) {
             toast("Need 2+ players not on Hold");
@@ -1961,16 +2019,25 @@
   function marriagePlayScreen() {
     let state = null;
     const saved = Store.getActive("marriage");
-    if (saved && saved.game === "marriage-play") state = saved;
+    if (saved && saved.game === "marriage-play" && Array.isArray(saved.stock)) state = saved;
     let lastSettle = null;
+    let botTimer = null;
+
+    function clearBotTimer() {
+      if (botTimer) {
+        clearTimeout(botTimer);
+        botTimer = null;
+      }
+    }
 
     function start() {
+      clearBotTimer();
       root.innerHTML = `${topbar("pm")}
       <div class="screen-pad">
       <section class="score-card sheet">
         <h1 class="tool-title">Play Marriage</h1>
-        <p class="tool-sub">Simplified practice table</p>
-        <p class="lede">Deal to the oval, flip a tiplu, estimate maal, then settle with the full calculator.</p>
+        <p class="tool-sub">21 cards · pull discard or deck</p>
+        <p class="lede">Only your hand is face-up. Opponents throw to the discard. Lay 3 sequences (or 7 dublees on the floor) before the first-cut maal opens.</p>
         <div class="score-card-actions">
           <button type="button" class="soft-btn primary" id="bots">Vs computer</button>
           <button type="button" class="soft-btn" id="hotseat">With friends</button>
@@ -1995,130 +2062,285 @@
       return esc(String(name || "?").trim().charAt(0).toUpperCase() || "?");
     }
 
+    function viewSeat() {
+      if (state.mode === "hotseat") return state.turn;
+      return 0;
+    }
+
     function seatHtml(i) {
-      /* You (0) at bottom; clockwise: left=1, top=2, right=3 → CSS named sides */
       const pos = ["bottom", "left", "top", "right"][i % 4];
       const hand = state.hands[i] || [];
-      const show = hand.slice(0, 8);
-      const isWin = state.winnerIndex === i;
-      return `<div class="seat ${pos}${isWin ? " winner" : ""}" data-seat="${i}">
-        <button type="button" class="seat-winner-btn soft-btn${isWin ? "" : " outline"}" data-winner="${i}" title="Set winner" aria-pressed="${isWin}">${isWin ? "★" : "☆"}</button>
+      const active = state.turn === i;
+      const floor = state.floor[i] || [];
+      const seqN = state.shownSeqCount[i] || 0;
+      const isYou = i === viewSeat();
+      const backs = !isYou;
+      return `<div class="seat ${pos}${active ? " active" : ""}${seqN >= 3 ? " has-show" : ""}" data-seat="${i}">
         <div class="avatar">${initial(state.names[i])}</div>
-        <div class="name">${esc(state.names[i])}</div>
-        <div class="hand fan">${show.map((c, fi) =>
-          Cards.html(c, { small: true, fan: true, fanIndex: fi, dealIn: true })
-        ).join("")}${hand.length > show.length ? `<span class="more">+${hand.length - show.length}</span>` : ""}</div>
-        <div class="maal-stepper">
-          <button type="button" class="maal-dec" data-i="${i}" aria-label="Decrease maal">−</button>
-          <input class="maal" data-i="${i}" type="number" value="${esc(state.maal[i])}" aria-label="Maal" />
-          <button type="button" class="maal-inc" data-i="${i}" aria-label="Increase maal">+</button>
+        <div class="name">${esc(state.names[i])}${active ? " · turn" : ""}</div>
+        <div class="hand fan seat-hand">${backs
+          ? Cards.backFan(Math.min(8, hand.length), { small: true }) +
+            (hand.length > 8 ? `<span class="more">${hand.length}</span>` : `<span class="more">${hand.length}</span>`)
+          : ""}</div>
+        <div class="seat-floor-meta">${seqN ? `${seqN} seq` : "—"}</div>
+        ${floor.length ? `<div class="seat-floor-mini">${floor.slice(0, 2).map((seq) =>
+          `<span class="floor-chip">${seq.length}</span>`
+        ).join("")}</div>` : ""}
+      </div>`;
+    }
+
+    function myHandHtml() {
+      const seat = viewSeat();
+      const hand = state.hands[seat] || [];
+      const groups = MPlay.bySuit(hand);
+      const canDiscard = state.phase === "discard" && state.turn === seat;
+      const suitOrder = ["S", "H", "D", "C"];
+      return `<div class="my-hand" aria-label="Your 21 cards">
+        <div class="my-hand-meta">
+          <span>${hand.length} cards · sorted by suit</span>
+          ${canDiscard ? `<span class="hint-pull">Tap a card to throw</span>` : ""}
         </div>
-        <div class="chips">
-          <span class="chip ${state.seen[i] ? "chip-seen on" : "chip-unseen"}">${state.seen[i] ? "Seen" : "Unseen"}</span>
+        <div class="suit-rows">
+          ${suitOrder.map((suit) => {
+            const cards = groups[suit] || [];
+            if (!cards.length) return "";
+            return `<div class="suit-row" data-suit="${suit}">
+              <span class="suit-tag">${Cards.SUIT_SYM[suit]}</span>
+              <div class="hand suit-fan">${cards.map((c, fi) =>
+                Cards.html(c, {
+                  small: true,
+                  fan: true,
+                  fanIndex: fi,
+                  dataId: true,
+                  playable: canDiscard,
+                  disabled: !canDiscard
+                })
+              ).join("")}</div>
+            </div>`;
+          }).join("")}
         </div>
       </div>`;
     }
 
+    function floorHtml() {
+      const piles = [];
+      state.names.forEach((name, i) => {
+        (state.floor[i] || []).forEach((seq, si) => {
+          piles.push(`<div class="floor-seq" data-owner="${i}">
+            <span class="floor-who">${esc(name)}</span>
+            <div class="hand floor-fan">${seq.map((c, fi) =>
+              Cards.html(c, { small: true, fan: true, fanIndex: fi })
+            ).join("")}</div>
+          </div>`);
+        });
+      });
+      if (!piles.length) {
+        return `<div class="floor-empty">Floor empty — lay 3 sequences when you have them</div>`;
+      }
+      return `<div class="floor-board">${piles.join("")}</div>`;
+    }
+
+    function centerPitHtml() {
+      const top = MPlay.topDiscard(state);
+      const canDraw = state.phase === "draw" && state.turn === viewSeat();
+      const tipluBlock = state.maalRevealed
+        ? `<div class="tiplu-open">
+            <span class="pit-label">Maal · tiplu</span>
+            ${Cards.html(state.tiplu, { large: true })}
+            <span class="pit-sub">${esc(Cards.label(state.tiplu))}</span>
+          </div>`
+        : `<div class="tiplu-hidden" title="Hidden until everyone shows 3 sequences or 7 dublees on the floor">
+            <span class="pit-label">First cut</span>
+            ${Cards.htmlBack({ large: true })}
+            <span class="pit-sub">Hidden</span>
+          </div>`;
+      return `<div class="marriage-pit">
+        <div class="pile-stack stock-pile ${canDraw ? "pullable" : ""}" id="stock-pile" data-pull="stock" role="button" aria-label="Pull from deck">
+          ${Cards.htmlBack({ large: true })}
+          <span class="pile-count">${(state.stock || []).length}</span>
+          ${canDraw ? `<span class="pull-hint">Pull deck</span>` : ""}
+        </div>
+        <div class="pile-stack discard-pile ${canDraw && top ? "pullable" : ""}" id="discard-pile" data-pull="discard" role="button" aria-label="Pull discarded card">
+          ${top ? Cards.html(top, { large: true, dataId: true }) : Cards.htmlBack({ large: true })}
+          ${canDraw && top ? `<span class="pull-hint">Pull discard</span>` : ""}
+        </div>
+        ${tipluBlock}
+      </div>`;
+    }
+
+    function scheduleBots() {
+      clearBotTimer();
+      if (!state || state.mode !== "bots") return;
+      if (state.turn === 0) return;
+      botTimer = setTimeout(() => {
+        MPlay.runBotsUntilHuman(state, 8);
+        Store.setActive("marriage", state);
+        paint();
+      }, 650);
+    }
+
+    function bindPullGestures() {
+      const seat = viewSeat();
+      const canDraw = state.phase === "draw" && state.turn === seat;
+
+      function doPull(kind) {
+        if (!canDraw) return;
+        const r = kind === "discard" ? MPlay.takeDiscard(state, seat) : MPlay.drawFromStock(state, seat);
+        if (!r.ok) {
+          toast(r.reason || "Can't pull");
+          return;
+        }
+        toast(kind === "discard" ? "Took discard" : "Drew from deck");
+        Store.setActive("marriage", state);
+        paint();
+      }
+
+      ["stock-pile", "discard-pile"].forEach((id) => {
+        const el = root.querySelector("#" + id);
+        if (!el) return;
+        el.onclick = () => doPull(el.getAttribute("data-pull"));
+
+        let startY = null;
+        el.addEventListener("touchstart", (e) => {
+          if (!canDraw) return;
+          const t = e.changedTouches[0];
+          startY = t.clientY;
+          el.classList.add("pulling");
+        }, { passive: true });
+        el.addEventListener("touchmove", (e) => {
+          if (startY == null || !canDraw) return;
+          const t = e.changedTouches[0];
+          const dy = startY - t.clientY;
+          const pull = Math.max(0, Math.min(56, dy));
+          el.style.transform = `translateY(${-pull}px)`;
+        }, { passive: true });
+        el.addEventListener("touchend", (e) => {
+          el.classList.remove("pulling");
+          el.style.transform = "";
+          if (startY == null || !canDraw) return;
+          const t = e.changedTouches[0];
+          const dy = startY - t.clientY;
+          startY = null;
+          if (dy > 36) doPull(el.getAttribute("data-pull"));
+        });
+      });
+    }
+
     function paint() {
       if (!state) return start();
+      // Migrate older sessions without stock
+      if (!Array.isArray(state.stock)) {
+        state = null;
+        return start();
+      }
       Store.setActive("marriage", state);
-      const tiplu = state.tiplu;
-      const order = [2, 3, 0, 1]; /* top, right, bottom, left */
+      const seat = viewSeat();
+      const mySeqs = MPlay.findSequences(state.hands[seat] || []);
+      const canLay = mySeqs.length >= 3;
+      const order = [2, 3, 0, 1];
+      const dubleeN = state.floorDubleeTotal || 0;
+
       root.innerHTML = `${topbar("pm")}
-      <div class="screen-pad">
+      <div class="screen-pad marriage-play-screen">
       <div class="sticky-score score-card">
-        <div class="title">Marriage play · ${esc(state.roomCode)}</div>
-        <div class="scores">${state.names.map((n, i) =>
-          `<span><strong>${esc(n)}</strong> maal ${esc(state.maal[i])}${state.winnerIndex === i ? " · ★" : ""}</span>`
-        ).join("")}</div>
-      </div>
-      ${state.mode === "hotseat" ? `<div class="pass-device soft">Hotseat · room ${esc(state.roomCode)}</div>` : ""}
-      <div class="rail-bar tool-panel">
-        <span class="rail-title tool-sub">Settings</span>
-        <label class="rail-check soft-check"><input type="checkbox" id="murder" ${state.murder ? "checked" : ""} /> Murder</label>
-        <label class="rail-check soft-check"><input type="checkbox" id="openm" ${state.openMarriage ? "checked" : ""} /> Open Marriage</label>
-        <div class="field"><label>Rate</label><input id="rate" type="number" step="0.1" value="${esc(state.rate)}" /></div>
-      </div>
-      <div class="table-oval" data-seats="4">
-        ${order.map((i) => seatHtml(i)).join("")}
-        <div class="trick-pit tiplu-pit">
-          <span class="pit-label">Tiplu</span>
-          ${Cards.html(tiplu, { large: true })}
-          <span class="pit-sub">${esc(Cards.label(tiplu))}</span>
+        <div class="title">Marriage · ${esc(state.roomCode)}</div>
+        <div class="scores">
+          ${state.names.map((n, i) =>
+            `<span class="${state.turn === i ? "is-turn" : ""}"><strong>${esc(n)}</strong>${
+              state.maalRevealed ? ` · maal ${esc(state.maal[i])}` : ""
+            }${(state.shownSeqCount[i] || 0) >= 3 ? " · shown" : ""}</span>`
+          ).join("")}
         </div>
+        <p class="turn-banner">${esc(state.message || "")} · floor dublees ${dubleeN}/7</p>
       </div>
+
+      <div class="table-oval marriage-oval" data-seats="4">
+        ${order.map((i) => seatHtml(i)).join("")}
+        ${centerPitHtml()}
+      </div>
+
+      <section class="floor-panel score-card" aria-label="Floor sequences">
+        <h2 class="score-card-head">Floor <span class="score-sum">${dubleeN} dublee</span></h2>
+        ${floorHtml()}
+      </section>
+
+      ${myHandHtml()}
+
       <div class="row play-actions score-card-actions">
-        <button type="button" class="soft-btn primary" id="settle">Settle</button>
+        ${canLay ? `<button type="button" class="soft-btn primary" id="lay-seq">Show 3 sequences</button>` : ""}
+        ${state.maalRevealed ? `<button type="button" class="soft-btn primary" id="settle">Settle maal</button>` : `<button type="button" class="soft-btn outline" id="settle" disabled title="Maal still hidden">Settle</button>`}
         <button type="button" class="soft-btn" id="invite">Copy invite</button>
         <button type="button" class="soft-btn danger" id="quit">Quit</button>
       </div>
-      <section class="score-card settle-tray" id="out">${lastSettle || `<p class="lede" style="margin:0">Pick a winner, tweak maal on each seat, then settle.</p>`}</section>
+      <section class="score-card settle-tray" id="out">${lastSettle || ""}</section>
       </div>`;
 
-      root.querySelector("#murder").onchange = (e) => {
-        state.murder = e.target.checked;
-        Store.setActive("marriage", state);
-      };
-      root.querySelector("#openm").onchange = (e) => {
-        state.openMarriage = e.target.checked;
-        Store.setActive("marriage", state);
-      };
-      root.querySelector("#rate").onchange = (e) => {
-        state.rate = Number(e.target.value) || 0;
-        Store.setActive("marriage", state);
-      };
-      root.querySelectorAll(".maal").forEach((inp) => {
-        inp.onchange = () => {
-          const i = Number(inp.dataset.i);
-          state.maal[i] = Number(inp.value) || 0;
-          state.seen[i] = state.maal[i] > 0;
-          Store.setActive("marriage", state);
-          paint();
-        };
-      });
-      root.querySelectorAll(".maal-inc").forEach((btn) => {
+      bindPullGestures();
+
+      root.querySelectorAll(".my-hand .card.playable").forEach((btn) => {
         btn.onclick = () => {
-          const i = Number(btn.dataset.i);
-          state.maal[i] = (Number(state.maal[i]) || 0) + 1;
-          state.seen[i] = state.maal[i] > 0;
+          const id = btn.getAttribute("data-id");
+          const r = MPlay.discardCard(state, seat, id);
+          if (!r.ok) {
+            toast(r.reason || "Can't throw");
+            return;
+          }
+          Store.setActive("marriage", state);
+          paint();
+          scheduleBots();
+        };
+      });
+
+      const lay = root.querySelector("#lay-seq");
+      if (lay) {
+        lay.onclick = () => {
+          const r = MPlay.laySequences(state, seat);
+          if (!r.ok) {
+            toast(r.reason || "Need 3 sequences");
+            return;
+          }
+          toast(r.revealed ? "Tiplu / maal opened" : "Sequences on the floor");
           Store.setActive("marriage", state);
           paint();
         };
-      });
-      root.querySelectorAll(".maal-dec").forEach((btn) => {
-        btn.onclick = () => {
-          const i = Number(btn.dataset.i);
-          state.maal[i] = Math.max(0, (Number(state.maal[i]) || 0) - 1);
-          state.seen[i] = state.maal[i] > 0;
-          Store.setActive("marriage", state);
-          paint();
-        };
-      });
-      root.querySelectorAll("[data-winner]").forEach((btn) => {
-        btn.onclick = () => {
-          state.winnerIndex = Number(btn.getAttribute("data-winner"));
-          Store.setActive("marriage", state);
-          paint();
-        };
-      });
-      root.querySelector("#settle").onclick = () => {
-        const calc = MPlay.toCalcSession(state);
-        const r = MCalc.settle(calc);
-        Store.upsertLog({ id: state.id, game: "marriage-play", title: "Marriage play settle", payload: { state, result: r } });
-        lastSettle = `<h2 class="score-card-head">Settlement</h2>
+      }
+
+      const settle = root.querySelector("#settle");
+      if (settle && !settle.disabled) {
+        settle.onclick = () => {
+          MPlay.recomputeMaal(state);
+          // Highest maal wins by default if not set
+          let best = 0;
+          state.maal.forEach((m, i) => { if (m > state.maal[best]) best = i; });
+          state.winnerIndex = best;
+          const calc = MPlay.toCalcSession(state);
+          const r = MCalc.settle(calc);
+          Store.upsertLog({
+            id: state.id,
+            game: "marriage-play",
+            title: "Marriage play settle",
+            payload: { state, result: r }
+          });
+          lastSettle = `<h2 class="score-card-head">Settlement</h2>
             <div class="math">${esc(r.lines.join("\n"))}</div>
             <div class="money-chips">${r.players.map((p, i) =>
               `<div class="money-chip ${r.money[i] >= 0 ? "win" : "lose"}"><span class="who">${esc(p.name)}</span><span class="money-amt">${r.money[i] >= 0 ? "+" : ""}${r.money[i]}</span><span class="money-pts">${r.netPts[i]} pts</span></div>`
             ).join("")}</div>`;
-        paint();
-      };
+          state.phase = "settle";
+          paint();
+        };
+      }
+
       root.querySelector("#invite").onclick = () => copyText(JSON.stringify(MPlay.exportInvite(state)));
       root.querySelector("#quit").onclick = () => {
+        clearBotTimer();
         Store.clearActive("marriage");
         state = null;
         lastSettle = null;
         location.hash = "#/";
       };
+
+      scheduleBots();
     }
     paint();
   }

@@ -1,4 +1,4 @@
-const CACHE = "marriage-game-v14";
+const CACHE = "marriage-game-v17";
 const SHELL = [
   "./",
   "./index.html",
